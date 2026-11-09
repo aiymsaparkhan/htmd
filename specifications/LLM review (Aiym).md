@@ -41,9 +41,11 @@ and whether it was consistent with the team's specification.
 
 | Round | Findings | Changes made after review |
 |---|---|---|
-| 1 | Five findings concerning selection rules, text pool, generator choice, generator checks, and coverage ownership. | No changes yet; findings recorded for consideration. |
+| 1 | Five findings concerning selection rules, text pool, generator choice, generator checks, and coverage ownership. | Commit c48cbfe adds random selection rules, an explicit text pool, a fixed PRNG choice, and generator validation requirements; coverage ownership remains open.|
 
 ## Status
 
-This is the first review, not a final approval.
-The findings have not yet been resolved.
+Changes addressing findings 1–4 were saved in commit c48cbfe.
+A follow-up review is still required to assess these changes.
+Finding 5, coverage ownership, remains open for team discussion.
+No generator implementation or execution is claimed.
