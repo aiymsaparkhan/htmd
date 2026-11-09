@@ -61,6 +61,20 @@ Attributes, links, images, tables, code blocks, and nested lists are
 outside this initial generator's scope. They may be added as separate
 generation profiles with their own rules.
 
+Random selection follows these rules:
+
+- Choose the number of top-level blocks uniformly from 1 to 8.
+- Choose each block type uniformly from paragraph, heading,
+  and unordered list.
+- For a heading, choose its level uniformly from 1 to 6.
+- Choose each child count uniformly from 1 to 4.
+- For each inline child, choose uniformly from text, emphasis,
+  and strong emphasis if another element fits the depth limit.
+- At the maximum element depth, generate text only.
+
+Generate children in document order. Use the same seeded
+pseudorandom generator for all random choices.
+
 ### 4.2 Text Generation
 
 Text values are selected from a fixed, versioned pool containing:
@@ -70,6 +84,20 @@ Text values are selected from a fixed, versioned pool containing:
 - Markdown punctuation: asterisks, underscores, brackets, and backticks.
 - Literal ampersands and angle brackets.
 - Single, leading, trailing, and repeated spaces.
+
+
+The initial text pool, version 1, contains these exact strings.
+Quotation marks delimit values and are not part of the text:
+
+```json
+["Hello", "abc123", "Привет", "*literal*", "_text_", "[label]",
+ "`code`", "&", "<", ">", " ", " leading", "trailing ",
+ "two  spaces", "a", "abcdefghijklmnopqrstuvwxyz012345"]
+```
+
+For each text node, choose one complete string uniformly from
+this pool. Do not concatenate or trim the selected value.
+
 
 Text nodes must contain between 1 and 32 Unicode scalar values before
 HTML escaping. Empty elements are covered by predefined cases.
@@ -103,8 +131,9 @@ indefinitely or silently skipping the case.
 
 ### 4.4 Reproducibility
 
-Use a seeded pseudorandom generator, such as `ChaCha8Rng` from
-`rand_chacha`, initialized with a recorded unsigned 64-bit seed.
+Use `ChaCha8Rng` from `rand_chacha`, initialized through
+`SeedableRng::seed_from_u64` with a recorded unsigned 64-bit seed.
+Use this single generator for all random choices in the run.
 
 Before implementation is accepted, pin the generator dependency version
 and record the generator revision. The same seed, generator revision,
@@ -150,6 +179,32 @@ It must not be mixed into the valid structured generator.
 Label malformed cases explicitly and check them for crashes,
 unexpected errors, and timeouts. Do not apply the valid-input
 round-trip equality contract to raw malformed markup.
+
+### 4.7 Generator Validation
+
+Before passing a randomly generated fragment to HTMD, validate
+its generated tree against the grammar in section 4.1:
+
+- Only permitted elements and parent-child relationships are used.
+- Top-level block counts and child counts satisfy section 4.3.
+- Element depth does not exceed 6.
+- Text values belong to text pool version 1.
+- Serialized HTML does not exceed 4096 UTF-8 bytes.
+
+Validate the generated tree before serialization. Do not rely
+only on an HTML parser accepting the output, because parsers
+can repair invalid markup.
+
+Test serialization with fixed examples to verify matching tags
+and correct text escaping.
+
+For reproducibility, generate 100 cases twice with seed 0 and
+identical configuration and dependency versions. The two ordered
+sequences of serialized inputs must match byte for byte.
+
+A generator validation failure must be reported separately from
+an HTMD conversion failure. Do not pass an invalid generated
+case to the converter as a valid-input test.
 
 ## 5. Verification Strategy
 
