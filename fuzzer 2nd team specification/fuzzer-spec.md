@@ -204,6 +204,126 @@ Examples:
 
 These snapshots must be verified against the actual output before commit.
 
+### 9.1 Core HTML Generation
+
+This section specifies the initial valid-input generator for the
+`core` parser profile. It describes planned behavior, not an
+implemented or executed fuzzing campaign.
+
+#### Grammar and selection
+
+Generate HTML body fragments with the following grammar:
+
+- A fragment contains 1–8 top-level blocks.
+- A block is a paragraph (`p`), heading (`h1`–`h6`), or unordered list (`ul`).
+- Paragraphs and headings contain 1–4 inline children.
+- An unordered list contains 1–4 list items (`li`).
+- Each list item contains 1–4 inline children.
+- An inline child is text, emphasis (`em`), or strong emphasis (`strong`).
+- Each emphasis or strong-emphasis element contains 1–4 inline children.
+
+Choose counts uniformly within their inclusive ranges. Choose block
+types uniformly from paragraph, heading, and unordered list; choose
+heading levels uniformly from 1 to 6.
+
+Choose inline child types uniformly from text, emphasis, and strong
+emphasis while another element fits the depth limit. At element
+depth 6, generate text children only. Top-level elements have depth 1;
+text nodes do not increase element depth.
+
+Generate the tree recursively in document order. For each element,
+choose its child count before generating its children.
+
+Paragraphs, headings, and lists must not occur inside inline elements.
+Lists contain only list items. All generated elements have matching
+closing tags.
+
+This initial profile generates no attributes, links, images, nested
+lists, code blocks, comments, or raw-content elements. It introduces
+no GFM-only or foreign-namespace constructs. These restrictions apply
+only to this generator, not to the project's full testing scope.
+Separate generation contracts are still required for GFM and
+malformed inputs.
+
+#### Text and serialization
+
+Text pool version 1 contains these exact strings. JSON quotation
+marks delimit strings and are not part of their values:
+
+```json
+["Hello", "abc123", "Привет", "*literal*", "_text_", "[label]",
+ "`code`", "&", "<", ">", " ", " leading", "trailing ",
+ "two  spaces", "a", "abcdefghijklmnopqrstuvwxyz012345"]
+```
+
+Choose one complete string uniformly for each text node.
+Do not concatenate or trim values.
+
+Serialize element names in lowercase with explicit opening and
+closing tags. Do not insert indentation or separator whitespace
+between nodes.
+
+Escape literal `&`, `<`, and `>` in each text value exactly once
+as `&amp;`, `&lt;`, and `&gt;`. Do not escape the generated markup.
+
+The maximum serialized fragment size is 4096 UTF-8 bytes.
+If a complete candidate exceeds this limit, discard it and generate
+another candidate using the continuing PRNG state. Never truncate HTML.
+
+Allow at most 100 candidate attempts per requested case. If no
+candidate fits, abort that generation run and report a generator
+failure separately from converter results. Discarded candidates do
+not count toward the requested case count.
+
+#### Seeds and replay
+
+Use `ChaCha8Rng` initialized through `SeedableRng::seed_from_u64`.
+Use one PRNG for all choices within a run.
+
+For each master seed in section 10, initialize a fresh PRNG for the
+valid `core` run and produce 1000 accepted cases in sequence.
+Thus, the five listed seeds produce 5000 valid `core` cases.
+This section does not define the other 10000 cases in the overall plan.
+
+Pin dependency versions in `Cargo.lock`. Record the generator source
+revision, text-pool version, effective limits, PRNG algorithm, and
+dependency versions with run metadata.
+
+Assign accepted cases zero-based indices. Record the master seed,
+case index, input class `valid`, and parser profile `core` with each
+failure. Also save the exact HTML input as required by section 12.
+
+The same seed, generator revision, dependencies, and configuration
+must reproduce the same ordered inputs. Replaying saved HTML is the
+definitive reproduction method after generator changes.
+
+#### Generator checks
+
+Before serialization, validate the generated tree's permitted
+elements, parent-child relationships, counts, depth, and text values.
+After serialization, check the byte limit and apply the retry rule.
+
+Do not treat HTML parser acceptance alone as proof of valid generation:
+parsers can repair malformed markup.
+
+Required generator self-tests must verify:
+
+- Valid and invalid tree fixtures are accepted and rejected correctly.
+- Element depth 6 is accepted and depth 7 is rejected.
+- The byte-limit check accepts 4096 bytes and rejects 4097 bytes.
+- Serialization escapes text correctly and emits matching tags.
+- Oversized candidates are retried without truncation.
+- Exhausting 100 attempts reports a generator failure.
+- Two runs of 100 cases with seed 0 and identical versions and
+  configuration produce byte-identical ordered input sequences.
+
+Use controlled candidate fixtures for retry and exhaustion tests.
+Generator failures must not be reported as HTMD conversion defects.
+
+The generated valid inputs use the conversion settings and oracle
+defined in sections 4–8. This section does not introduce additional
+normalization or exceptions to comparison.
+
 ## 10. Execution order and seeds
 Execution order:
 
